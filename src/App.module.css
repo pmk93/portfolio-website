@@ -1,6 +1,208 @@
-@import "./vars.css";
-.App {
-    background-color: var(--color-bg);
-    width: 100%;
-    height: 100%;
+.app {
+  min-height: 100vh;
+  background: radial-gradient(circle at 20% 0%, #0f3b82, #041226 55%);
+  color: #f8fafc;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.topControls {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+}
+
+.topControls label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  gap: 6px;
+}
+
+.card {
+  background: linear-gradient(160deg, rgba(16, 25, 43, 0.92), rgba(11, 38, 67, 0.85));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.broadcast {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.field {
+  position: relative;
+  height: 330px;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 70%, rgba(194, 255, 181, 0.85) 0%, rgba(34, 131, 63, 0.9) 38%, rgba(23, 86, 44, 1) 74%),
+    linear-gradient(#1f8d45, #14532d);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+}
+
+.pitch {
+  position: absolute;
+  left: 50%;
+  top: 32px;
+  transform: translateX(-50%);
+  width: 130px;
+  height: 266px;
+  border-radius: 12px;
+  background: linear-gradient(#f3d37a, #d8a93a);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.15);
+}
+
+.bowler,
+.batsman {
+  position: absolute;
+  font-size: 2.6rem;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.35));
+}
+
+.bowler {
+  left: 50%;
+  top: 30px;
+  transform: translateX(-50%);
+  animation: bowlerRun 0.9s ease-in-out infinite alternate;
+}
+
+.batsman {
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  animation: batSet 0.8s ease-in-out infinite alternate;
+}
+
+.ball {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff, #e2e8f0);
+  border: 2px solid #dc2626;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+  transition: left 40ms linear, top 40ms linear, transform 120ms ease;
+}
+
+.liveBall {
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.7);
+}
+
+.groundBall {
+  transform: scale(0.92);
+}
+
+.airBall {
+  transform: scale(1.15);
+}
+
+.shotleg {
+  margin-left: -48px;
+}
+
+.shotstraight {
+  margin-left: 0;
+}
+
+.shotoff {
+  margin-left: 48px;
+}
+
+.hud {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  color: #dbeafe;
+}
+
+.commentary {
+  margin-top: 10px;
+  color: #93c5fd;
+  font-size: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+  align-items: center;
+}
+
+button,
+select {
+  background: linear-gradient(145deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.95rem;
+}
+
+button:hover {
+  filter: brightness(1.08);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.active {
+  background: linear-gradient(145deg, #0ea5e9, #0284c7);
+}
+
+.controls {
+  width: 100%;
+  color: #bfdbfe;
+}
+
+.log {
+  margin-top: 8px;
+  list-style: none;
+}
+
+.log li {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes bowlerRun {
+  from {
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    transform: translateX(-50%) translateY(6px);
+  }
+}
+
+@keyframes batSet {
+  from {
+    transform: translateX(-50%) rotate(-6deg);
+  }
+  to {
+    transform: translateX(-50%) rotate(7deg);
+  }
 }
