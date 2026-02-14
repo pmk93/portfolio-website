@@ -11,6 +11,7 @@ const STADIUMS = [
 const TEAM_A = "You XI";
 const TEAM_B = "CPU XI";
 const TOTAL_OVERS = 2;
+const CAMERAS = ["End-On Cam", "Side Cam", "Sky Cam", "Stump Cam"];
 
 const battingLineup = {
   [TEAM_A]: ["A. Sharma", "R. Kohan", "V. Singh", "H. Pandit", "M. Jade"],
@@ -23,8 +24,6 @@ const bowlingLineup = {
 };
 
 const ballLabels = ["Pace", "Spin", "Yorker"];
-const shotDirs = ["leg", "straight", "off"];
-
 const createInnings = (battingTeam, bowlingTeam) => ({
   battingTeam,
   bowlingTeam,
@@ -52,14 +51,13 @@ function App() {
   const [inningsIdx, setInningsIdx] = useState(0);
   const [matchResult, setMatchResult] = useState("");
   const [selectedBall, setSelectedBall] = useState("Pace");
+  const [cameraIdx, setCameraIdx] = useState(0);
   const [shotDirection, setShotDirection] = useState("straight");
-  const [lastBall, setLastBall] = useState("Ready for first ball");
-  const [musicOn, setMusicOn] = useState(false);
+  const [shotType, setShotType] = useState("ground");
+  const [lastBall, setLastBall] = useState({ event: "Ready", runs: 0, wicket: false, direction: "straight", shotType: "ground" });
   const audioRef = useRef(null);
   const gainRef = useRef(null);
-
-  const [anim, setAnim] = useState({ active: false, type: "", progress: 0 });
-  const [delivery, setDelivery] = useState({ shotPlayed: false, shotType: "ground", shotTiming: 0, shotDir: "straight" });
+  const [musicOn, setMusicOn] = useState(false);
 
   const currentInnings = inningsList[inningsIdx];
   const userBatting = currentInnings?.battingTeam === TEAM_A;
@@ -74,14 +72,16 @@ function App() {
       if (gainRef.current) gainRef.current.gain.value = 0;
       return;
     }
+
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
 
     if (!audioRef.current) {
       const ctx = new AudioContext();
       const gain = ctx.createGain();
-      gain.gain.value = 0.06;
+      gain.gain.value = 0.05;
       gain.connect(ctx.destination);
+
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       osc1.type = "sine";
@@ -92,78 +92,77 @@ function App() {
       osc2.connect(gain);
       osc1.start();
       osc2.start();
+
       audioRef.current = { ctx, osc1, osc2 };
       gainRef.current = gain;
     }
 
-    if (audioRef.current.ctx.state === "suspended") audioRef.current.ctx.resume();
+    if (audioRef.current.ctx.state === "suspended") {
+      audioRef.current.ctx.resume();
+    }
     gainRef.current.gain.value = 0.06;
   }, [musicOn]);
 
   useEffect(() => {
-    let id;
-    if (anim.active) {
-      id = setInterval(() => {
-        setAnim((prev) => {
-          const next = Math.min(prev.progress + 0.03, 1);
-          if (next >= 1) {
-            setTimeout(() => {
-              if (prev.type === "bat") resolveBatBall();
-              if (prev.type === "bowl") resolveBowlBall();
-            }, 0);
-            return { active: false, type: "", progress: 0 };
-          }
-          return { ...prev, progress: next };
-        });
-      }, 28);
-    }
-
-    return () => clearInterval(id);
-  }, [anim.active]);
+    if (phase !== "play") return;
+    const timer = setInterval(() => setCameraIdx((idx) => (idx + 1) % CAMERAS.length), 2800);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
-      if (phase !== "play" || !currentInnings || !userBatting || !anim.active || anim.type !== "bat") return;
+      if (phase !== "play" || !currentInnings || !userBatting) return;
+
       if (e.key === "ArrowLeft") setShotDirection("leg");
       if (e.key === "ArrowUp") setShotDirection("straight");
       if (e.key === "ArrowRight") setShotDirection("off");
-      if (delivery.shotPlayed) return;
-      if (e.key.toLowerCase() === "s" || e.key.toLowerCase() === "a") {
-        setDelivery({
-          shotPlayed: true,
-          shotType: e.key.toLowerCase() === "a" ? "air" : "ground",
-          shotTiming: anim.progress,
-          shotDir: shotDirection,
-        });
+
+      if (e.key.toLowerCase() === "s") {
+        setShotType("ground");
+        playBattingShot("ground");
+      }
+
+      if (e.key.toLowerCase() === "a") {
+        setShotType("air");
+        playBattingShot("air");
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [phase, currentInnings, userBatting, anim, delivery.shotPlayed, shotDirection]);
+  }, [phase, currentInnings, userBatting, shotDirection, stadium]);
 
   const doToss = () => {
     const coin = Math.random() < 0.5 ? "Heads" : "Tails";
     const userWon = coin === tossChoice;
     const winner = userWon ? TEAM_A : TEAM_B;
     setTossWinner(`${winner} won the toss (${coin})`);
-    if (userWon) setPhase("chooseRole");
-    else launchMatch(Math.random() < 0.5 ? "bat" : "bowl");
+
+    if (userWon) {
+      setPhase("chooseRole");
+    } else {
+      const cpuRole = Math.random() < 0.5 ? "bat" : "bowl";
+      const userRole = cpuRole === "bat" ? "bowl" : "bat";
+      launchMatch(userRole);
+    }
   };
 
   const launchMatch = (firstRole) => {
     setUserFirstRole(firstRole);
     const firstBatting = firstRole === "bat" ? TEAM_A : TEAM_B;
     const firstBowling = firstBatting === TEAM_A ? TEAM_B : TEAM_A;
-    setInningsList([createInnings(firstBatting, firstBowling), createInnings(firstBowling, firstBatting)]);
+    setInningsList([
+      createInnings(firstBatting, firstBowling),
+      createInnings(firstBowling, firstBatting),
+    ]);
     setInningsIdx(0);
     setMatchResult("");
-    setLastBall("Innings start!");
+    setLastBall({ event: "Innings start!", runs: 0, wicket: false, direction: "straight", shotType: "ground" });
     setPhase("play");
   };
 
-  const finishBall = (runs, wicket, note) => {
-    setLastBall(note);
+  const finishBall = ({ runs, wicket, note, direction = "straight", type = "ground" }) => {
+    setLastBall({ event: note, runs, wicket, direction, shotType: type });
     setInningsList((prev) => {
       const next = [...prev];
       const inn = { ...next[inningsIdx] };
@@ -171,12 +170,14 @@ function App() {
       const bowler = inn.currentBowler;
       const bat = { ...inn.batStats[striker] };
       const bowl = { ...inn.bowlStats[bowler] };
+
       inn.balls += 1;
       inn.runs += runs;
       bat.runs += runs;
       bat.balls += 1;
       bowl.runs += runs;
       bowl.balls += 1;
+
       if (wicket) {
         inn.wickets += 1;
         bat.out = true;
@@ -184,66 +185,77 @@ function App() {
         inn.batterIndex += 1;
         inn.striker = battingLineup[inn.battingTeam][inn.batterIndex] || "All Out";
       }
+
       if (inn.balls % 6 === 0) {
         inn.bowlerIndex = (inn.bowlerIndex + 1) % bowlingLineup[inn.bowlingTeam].length;
         inn.currentBowler = bowlingLineup[inn.bowlingTeam][inn.bowlerIndex];
       }
+
       inn.batStats = { ...inn.batStats, [striker]: bat };
       inn.bowlStats = { ...inn.bowlStats, [bowler]: bowl };
       inn.log = [`${note} (${runs}${wicket ? ", W" : ""})`, ...inn.log].slice(0, 10);
       next[inningsIdx] = inn;
       return next;
     });
-    setDelivery({ shotPlayed: false, shotType: "ground", shotTiming: 0, shotDir: "straight" });
   };
 
-  const resolveBatBall = () => {
+  const playBattingShot = (manualType = "ground") => {
     const boost = stadium.battingBoost;
-    if (!delivery.shotPlayed) return finishBall(0, true, "Too late! Bowled");
-    const timingDiff = Math.abs(delivery.shotTiming - 0.72);
-    const timingQuality = Math.max(0, 1 - timingDiff * 2.4);
-    const aerialRisk = delivery.shotType === "air" ? 0.12 : 0.02;
-    const wicketChance = Math.max(0.06, 0.28 - timingQuality * 0.18 + aerialRisk - boost * 0.08);
     const roll = Math.random();
-    if (roll < wicketChance) return finishBall(0, true, `${delivery.shotType === "air" ? "Mishit skier" : "Inside edge"} - OUT`);
-    if (timingQuality < 0.25) return finishBall(0, false, "Beaten for pace (dot)");
-    if (timingQuality < 0.45) return finishBall(1, false, `Nudged to ${delivery.shotDir}`);
-    if (timingQuality < 0.68) return finishBall(2, false, `Timed to the gap on ${delivery.shotDir}`);
-    if (timingQuality < 0.88) return finishBall(4, false, `Cracking boundary through ${delivery.shotDir}`);
-    return finishBall(6, false, `Perfect ${delivery.shotType === "air" ? "lofted" : "driven"} six!`);
+    const dirBonus = shotDirection === "straight" ? 0.06 : 0.02;
+    const aerialRisk = manualType === "air" ? 0.08 : -0.02;
+    const wicketLine = 0.14 - boost / 2 + aerialRisk;
+
+    if (roll < wicketLine) {
+      return finishBall({ runs: 0, wicket: true, note: `${manualType === "air" ? "Top edge" : "Inside edge"}! WICKET`, direction: shotDirection, type: manualType });
+    }
+    if (roll < 0.32) return finishBall({ runs: 0, wicket: false, note: "Dot ball", direction: shotDirection, type: manualType });
+    if (roll < 0.52 + dirBonus) return finishBall({ runs: 1, wicket: false, note: "Quick single", direction: shotDirection, type: manualType });
+    if (roll < 0.67 + dirBonus) return finishBall({ runs: 2, wicket: false, note: "Punched for two", direction: shotDirection, type: manualType });
+    if (roll < 0.85 + boost / 2) return finishBall({ runs: 4, wicket: false, note: `Ground stroke to ${shotDirection} fence`, direction: shotDirection, type: manualType });
+    return finishBall({ runs: 6, wicket: false, note: `Big ${manualType === "air" ? "lofted" : "clean"} hit!`, direction: shotDirection, type: manualType });
   };
 
-  const resolveBowlBall = () => {
-    const spinEdge = selectedBall === "Spin" ? 0.04 + stadium.spinAssist : 0;
-    const yorkerEdge = selectedBall === "Yorker" ? 0.06 : 0;
+  const bowlDelivery = () => {
+    const style = selectedBall;
+    const spinEdge = style === "Spin" ? 0.04 + stadium.spinAssist : 0;
+    const yorkerEdge = style === "Yorker" ? 0.06 : 0;
     const wicketChance = 0.11 + spinEdge + yorkerEdge;
     const roll = Math.random();
-    if (roll < wicketChance) return finishBall(0, true, `${selectedBall} castles the batter`);
-    if (roll < 0.4) return finishBall(0, false, `${selectedBall} tight line`);
-    if (roll < 0.62) return finishBall(1, false, "CPU takes one");
-    if (roll < 0.76) return finishBall(2, false, "CPU finds the gap");
-    if (roll < 0.9) return finishBall(4, false, "CPU boundary");
-    return finishBall(6, false, "CPU launches a six");
+
+    if (roll < wicketChance) return finishBall({ runs: 0, wicket: true, note: `${style} strikes!`, direction: "straight", type: "ground" });
+    if (roll < 0.4) return finishBall({ runs: 0, wicket: false, note: `${style} keeps it tight`, direction: "straight", type: "ground" });
+    if (roll < 0.62) return finishBall({ runs: 1, wicket: false, note: "Worked for one", direction: "leg", type: "ground" });
+    if (roll < 0.76) return finishBall({ runs: 2, wicket: false, note: "Placed for two", direction: "off", type: "ground" });
+    if (roll < 0.9) return finishBall({ runs: 4, wicket: false, note: "Boundary by CPU", direction: "off", type: "ground" });
+    return finishBall({ runs: 6, wicket: false, note: "Huge six by CPU", direction: "straight", type: "air" });
   };
 
   useEffect(() => {
     if (phase !== "play" || !currentInnings) return;
-    const inningsOver = currentInnings.balls >= TOTAL_OVERS * 6 || currentInnings.wickets >= battingLineup[currentInnings.battingTeam].length;
+
+    const inningsOver =
+      currentInnings.balls >= TOTAL_OVERS * 6 ||
+      currentInnings.wickets >= battingLineup[currentInnings.battingTeam].length;
+
     const chaseDone = inningsIdx === 1 && inningsList[1].runs > inningsList[0].runs;
+
     if (inningsOver || chaseDone) {
       if (inningsIdx === 0) {
         setInningsIdx(1);
-        setLastBall("Second innings begins");
+        setLastBall({ event: "Second innings begins", runs: 0, wicket: false, direction: "straight", shotType: "ground" });
         return;
       }
+
       const yourRuns = userFirstRole === "bat" ? inningsList[0].runs : inningsList[1].runs;
       const cpuRuns = userFirstRole === "bat" ? inningsList[1].runs : inningsList[0].runs;
+
       if (yourRuns > cpuRuns) setMatchResult(`You won by ${yourRuns - cpuRuns} runs!`);
       else if (cpuRuns > yourRuns) setMatchResult(`CPU won by ${cpuRuns - yourRuns} runs.`);
       else setMatchResult("Match tied!");
       setPhase("done");
     }
-  }, [phase, currentInnings, inningsIdx, inningsList, userFirstRole]);
+  }, [currentInnings, inningsIdx, inningsList, phase, userFirstRole]);
 
   const resetGame = () => {
     setPhase("setup");
@@ -251,43 +263,50 @@ function App() {
     setInningsList([]);
     setInningsIdx(0);
     setMatchResult("");
-    setAnim({ active: false, type: "", progress: 0 });
-    setDelivery({ shotPlayed: false, shotType: "ground", shotTiming: 0, shotDir: "straight" });
+    setLastBall({ event: "Ready", runs: 0, wicket: false, direction: "straight", shotType: "ground" });
   };
-
-  const startBatDelivery = () => {
-    if (anim.active) return;
-    setDelivery({ shotPlayed: false, shotType: "ground", shotTiming: 0, shotDir: shotDirection });
-    setAnim({ active: true, type: "bat", progress: 0 });
-  };
-
-  const startBowlDelivery = () => {
-    if (anim.active) return;
-    setAnim({ active: true, type: "bowl", progress: 0 });
-  };
-
-  const ballX = anim.progress * 78;
-  const ballY = 8 + anim.progress * 69;
-  const swingClass = shotDirs.includes(delivery.shotDir) ? styles[`shot${delivery.shotDir}`] : styles.shotstraight;
 
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <h1>Cricket Clash Pro</h1>
+        <h1>Cricket Clash Simulator</h1>
         <div className={styles.topControls}>
           <label>
             Stadium
             <select value={stadium.name} onChange={(e) => setStadium(STADIUMS.find((s) => s.name === e.target.value))}>
-              {STADIUMS.map((s) => <option key={s.name}>{s.name}</option>)}
+              {STADIUMS.map((s) => (
+                <option key={s.name}>{s.name}</option>
+              ))}
             </select>
           </label>
           <button onClick={() => setMusicOn((m) => !m)}>{musicOn ? "Pause Music" : "Play Music"}</button>
         </div>
       </header>
 
+      {(phase === "play" || phase === "done") && currentInnings && (
+        <section className={`${styles.card} ${styles.broadcast}`}>
+          <div className={styles.broadcastTop}>
+            <h3>Live Broadcast • {CAMERAS[cameraIdx]}</h3>
+            <div className={styles.cameraRow}>
+              {CAMERAS.map((c, idx) => (
+                <button key={c} className={idx === cameraIdx ? styles.active : ""} onClick={() => setCameraIdx(idx)}>{c}</button>
+              ))}
+            </div>
+          </div>
+          <div className={`${styles.field} ${styles[`cam${cameraIdx}`]}`}>
+            <div className={styles.pitch}></div>
+            <div className={`${styles.player} ${styles.bowler}`}>🏃‍♂️</div>
+            <div className={`${styles.player} ${styles.batsman}`}>🏏</div>
+            <div className={`${styles.ball} ${styles[`dir${lastBall.direction}`]} ${lastBall.shotType === "air" ? styles.airBall : styles.groundBall}`}></div>
+          </div>
+          <p className={styles.commentary}>Commentary: {lastBall.event} | Runs: {lastBall.runs} {lastBall.wicket ? "| WICKET!" : ""}</p>
+        </section>
+      )}
+
       {phase === "setup" && (
         <section className={styles.card}>
           <h2>Toss Time</h2>
+          <p>Choose toss and start the match.</p>
           <div className={styles.row}>
             <button className={tossChoice === "Heads" ? styles.active : ""} onClick={() => setTossChoice("Heads")}>Heads</button>
             <button className={tossChoice === "Tails" ? styles.active : ""} onClick={() => setTossChoice("Tails")}>Tails</button>
@@ -299,7 +318,8 @@ function App() {
 
       {phase === "chooseRole" && (
         <section className={styles.card}>
-          <h2>You won toss</h2>
+          <h2>You won the toss!</h2>
+          <p>Choose your first innings role:</p>
           <div className={styles.row}>
             <button onClick={() => launchMatch("bat")}>Bat First</button>
             <button onClick={() => launchMatch("bowl")}>Bowl First</button>
@@ -309,53 +329,59 @@ function App() {
 
       {(phase === "play" || phase === "done") && currentInnings && (
         <>
-          <section className={`${styles.card} ${styles.broadcast}`}>
-            <div className={styles.field}>
-              <div className={styles.pitch} />
-              <div className={styles.bowler}>🧍</div>
-              <div className={styles.batsman}>🏏</div>
-              <div className={`${styles.ball} ${anim.active ? styles.liveBall : ""} ${delivery.shotPlayed ? swingClass : ""} ${delivery.shotType === "air" ? styles.airBall : styles.groundBall}`} style={{ left: `${ballX}%`, top: `${ballY}%` }} />
-              <div className={styles.hud}>Timing window: hit S/A near release point (~70%)</div>
-            </div>
-            <p className={styles.commentary}>{lastBall}</p>
-          </section>
-
           <section className={styles.card}>
-            <h2>{currentInnings.battingTeam} {currentInnings.runs}/{currentInnings.wickets} ({oversText(currentInnings.balls)} ov)</h2>
-            <p>Batting: {currentInnings.striker} | Bowling: {currentInnings.currentBowler}</p>
+            <h2>
+              {currentInnings.battingTeam} {currentInnings.runs}/{currentInnings.wickets} ({oversText(currentInnings.balls)} ov)
+            </h2>
+            <p>
+              Batting: {currentInnings.striker} | Bowling: {currentInnings.currentBowler}
+            </p>
             {required !== null && required > 0 && <p>Need {required} runs to win</p>}
             {phase === "play" && (
               <div className={styles.row}>
                 {userBatting ? (
                   <>
-                    <p className={styles.controls}>Controls: ←/↑/→ direction, S ground shot, A aerial shot</p>
-                    <p className={styles.controls}>Direction selected: {shotDirection.toUpperCase()}</p>
-                    <button onClick={startBatDelivery} disabled={anim.active}>Start Next Ball</button>
+                    <p className={styles.controlsHint}>Batting controls: ←/↑/→ set direction | S = ground shot | A = lofted shot</p>
+                    <p className={styles.controlsHint}>Current: {shotDirection.toUpperCase()} + {shotType.toUpperCase()}</p>
                   </>
                 ) : (
                   <>
                     <select value={selectedBall} onChange={(e) => setSelectedBall(e.target.value)}>
-                      {ballLabels.map((label) => <option key={label}>{label}</option>)}
+                      {ballLabels.map((label) => (
+                        <option key={label}>{label}</option>
+                      ))}
                     </select>
-                    <button onClick={startBowlDelivery} disabled={anim.active}>Bowl Ball</button>
+                    <button onClick={bowlDelivery}>Bowl Ball</button>
                   </>
                 )}
               </div>
             )}
-            <ul className={styles.log}>{currentInnings.log.map((entry) => <li key={entry}>{entry}</li>)}</ul>
+            <ul className={styles.log}>
+              {currentInnings.log.map((entry) => (
+                <li key={entry}>{entry}</li>
+              ))}
+            </ul>
           </section>
 
           <section className={styles.grid}>
             <div className={styles.card}>
               <h3>Scorecard</h3>
-              {inningsList.map((inn, idx) => <p key={inn.battingTeam + idx}>Innings {idx + 1}: {inn.battingTeam} {inn.runs}/{inn.wickets} ({oversText(inn.balls)} ov)</p>)}
+              {inningsList.map((inn, idx) => (
+                <p key={inn.battingTeam + idx}>
+                  Innings {idx + 1}: {inn.battingTeam} {inn.runs}/{inn.wickets} ({oversText(inn.balls)} ov)
+                </p>
+              ))}
             </div>
             <div className={styles.card}>
               <h3>Player Stats</h3>
               <p><strong>Batting</strong></p>
-              {Object.entries(currentInnings.batStats).map(([name, st]) => <p key={name}>{name}: {st.runs} ({st.balls}) {st.out ? "out" : "not out"}</p>)}
+              {Object.entries(currentInnings.batStats).map(([name, st]) => (
+                <p key={name}>{name}: {st.runs} ({st.balls}) {st.out ? "out" : "not out"}</p>
+              ))}
               <p><strong>Bowling</strong></p>
-              {Object.entries(currentInnings.bowlStats).map(([name, st]) => <p key={name}>{name}: {st.wickets}/{st.runs} ({oversText(st.balls)})</p>)}
+              {Object.entries(currentInnings.bowlStats).map(([name, st]) => (
+                <p key={name}>{name}: {st.wickets}/{st.runs} ({oversText(st.balls)})</p>
+              ))}
             </div>
           </section>
         </>
